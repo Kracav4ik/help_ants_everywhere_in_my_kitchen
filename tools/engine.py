@@ -256,6 +256,8 @@ def run_game(game, botcmds, options):
                     values = stats[key]
                     if type(values) == list:
                         values = '[' + ','.join(map(str,values)) + ']'
+                    elif type(values) != str:
+                        values = str(values)
                     verbose_log.write(' {0:^{1}}'.format(values, max(len(key), len(str(values)))))
                 verbose_log.write('\n')
 
