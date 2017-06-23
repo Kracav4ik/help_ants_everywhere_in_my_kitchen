@@ -44,7 +44,7 @@ if __name__ == '__main__':
     try:
         import psyco
         psyco.full()
-    except ImportError:
+    except ImportError:                                                                         0
         pass
     
     try:
