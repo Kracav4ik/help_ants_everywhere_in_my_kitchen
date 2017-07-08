@@ -1,56 +1,161 @@
 #!/usr/bin/env python
 from ants import *
+from time import time
+import sys
 
-# define a class with a do_turn method
-# the Ants.run method will parse and update bot input
-# it will also run the do_turn method for us
+
+def add2(a, b): return a[0] + b[0], a[1] + b[1]
+
+
+def sub2(a, b): return a[0] - b[0], a[1] - b[1]
+
+
+def div_by_num(a, b): return a[0] / b, a[1] / b
+
+
+def mul_by_num(a, b): return a[0] * b, a[1] * b
+
+
+def mod_by_num(a, b): return a[0] % b, a[1] % b
+
+
+def div_by_num2_0(a, b, c): return a[0] / b, a[1] / c
+
+
+def mod_by_num2_0(a, b, c): return a[0] % b, a[1] % c
+
+
+def debug(*args):
+    return
+    with open('../fuck.u', 'a+') as f:
+        print(*args, file=f)
+
+
+_neighbours_cache = {}
+
+
+def get_neighbours(loc, rows, cols):
+    deltas = [
+        (-1, 0),
+        (0, 1),
+        (1, 0),
+        (0, -1)]
+    if loc not in _neighbours_cache:
+        _neighbours_cache[loc] = tuple(mod_by_num2_0(add2(loc, delta_rot), rows, cols) for delta_rot in deltas)
+    return _neighbours_cache[loc]
+
+
+def bfs_find_path(ants, ant_loc, target):
+    """ 
+    :type ants: Ants
+    :rtype: List
+    """
+    black = set()
+    grey = {ant_loc}
+    new_grey = set()
+    p2p = {}
+
+    food_set = set(ants.food_list)
+    my_ants = set(ants.my_ants())
+    while len(grey) > 0:
+        for loc in grey:
+            for neighbour in get_neighbours(loc, ants.rows, ants.cols):
+                a = ants.map[neighbour[0]][neighbour[1]] == WATER
+                b = neighbour in black
+                c = neighbour in grey
+                d = neighbour in new_grey
+                e = neighbour in p2p
+                f = neighbour in my_ants
+                if a or b or c or d or e or f:
+                    continue
+                new_grey.add(neighbour)
+                p2p[neighbour] = loc
+                if neighbour in food_set:
+                    if neighbour in target:
+                        continue
+                    last = neighbour
+                    target[neighbour] = last
+                    res = [neighbour]
+                    while last in p2p and last != ant_loc:
+                        res.insert(0, p2p[last])
+                        last = p2p[last]
+                    debug('PRIIIINT')
+                    debug(last)
+                    return res[1]
+        black.update(grey)
+        grey = new_grey
+        new_grey = set()
+    return []
+
+
 class MyBot:
     def __init__(self):
-        # define class level variables, will be remembered between turns
+        self.ant2path = {}
         pass
-    
-    # do_setup is run once at the start of the game
-    # after the bot has received the game settings
-    # the ants class is created and setup by the Ants.run method
+
     def do_setup(self, ants):
-        # initialize data structures after learning the game settings
         pass
-    
-    # do turn is run once per turn
-    # the ants class has the game state and is updated by the Ants.run method
-    # it also has several helper methods to use
+
+    def path2directions(self, param, ant_loc, ants):
+        deltas = {
+            (ants.rows-1, 0): 'n',
+            (0, 1): 'e',
+            (1, 0): 's',
+            (0, ants.cols-1): 'w',
+        }
+        self.ant2path[ant_loc] = deltas[mod_by_num2_0(sub2(param, ant_loc), ants.rows, ants.cols)]
+
     def do_turn(self, ants):
-        # loop through all my ants and try to give them orders
-        # the ant_loc is an ant location tuple in (row, col) form
+        orders = []
+        target = {}
+        t = 0
         for ant_loc in ants.my_ants():
-            # try all directions in given order
-            directions = ('n','e','s','w')
-            for direction in directions:
-                # the destination method will wrap around the map properly
-                # and give us a new (row, col) tuple
-                new_loc = ants.destination(ant_loc, direction)
-                # passable returns true if the location is land
-                if (ants.passable(new_loc)):
-                    # an order is the location of a current ant and a direction
-                    ants.issue_order((ant_loc, direction))
-                    # stop now, don't give 1 ant multiple orders
-                    break
-            # check if we still have time left to calculate more orders
-            if ants.time_remaining() < 10:
+            if ant_loc not in self.ant2path:
+                self.ant2path[ant_loc] = []
+            start = time()
+            debug(len(ants.my_ants()))
+            path = bfs_find_path(ants, ant_loc, target)
+            time_start = time() - start
+            debug('bfs->')
+            debug(time_start)
+            t += time_start
+            if t > 2:
                 break
-            
+            if not path:
+                orders.append(ant_loc)
+            elif path not in orders:
+                start = time()
+                orders.append(path)
+                self.path2directions(path, ant_loc, ants)
+                if not self.ant2path[ant_loc]:
+                    self.ant2path[ant_loc].append('w')
+                ants.issue_order((ant_loc, self.ant2path[ant_loc][0]))
+                time_start = time() - start
+                debug('what else?->')
+                debug(time_start)
+                t += time_start
+
+
 if __name__ == '__main__':
-    # psyco will speed up python a little, but is not needed
+    # ants = Ants()
+    # ants.map = {
+    #     0: {0: LAND, 1: LAND, 2: LAND, 3: LAND, 4: LAND, 5: LAND},
+    #     1: {0: LAND, 1: LAND, 2: LAND, 3: LAND, 4: LAND, 5: LAND},
+    #     2: {0: LAND, 1: LAND, 2: LAND, 3: LAND, 4: WATER, 5: LAND},
+    #     3: {0: LAND, 1: LAND, 2: LAND, 3: WATER, 4: FOOD, 5: WATER},
+    #     4: {0: LAND, 1: LAND, 2: LAND, 3: WATER, 4: LAND, 5: WATER},
+    #     5: {0: LAND, 1: LAND, 2: LAND, 3: LAND, 4: LAND, 5: LAND},
+    # }
+    # ants.food_list.append((3, 4))
+    # ants.rows = 6
+    # ants.cols = 6
+    # MyBot().path2directions(bfs_find_path(ants, (0, 0), {}), (0, 0), ants)
     try:
         import psyco
         psyco.full()
-    except ImportError:                                                                         0
+    except ImportError:
         pass
-    
     try:
-        # if run is passed a class with a do_turn method, it will do the work
-        # this is not needed, in which case you will need to write your own
-        # parsing function and your own game state class
         Ants.run(MyBot())
     except KeyboardInterrupt:
         print('ctrl-c, leaving ...')
