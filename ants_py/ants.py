@@ -150,7 +150,7 @@ class Ants():
                     if owner == MY_ANT]
 
     def enemy_hills(self):
-        return [(loc, owner) for loc, owner in self.hill_list.items()
+        return [loc for loc, owner in self.hill_list.items()
                     if owner != MY_ANT]
         
     def my_ants(self):
@@ -160,7 +160,7 @@ class Ants():
 
     def enemy_ants(self):
         'return a list of all visible enemy ants'
-        return [((row, col), owner)
+        return [(row, col)
                     for (row, col), owner in self.ant_list.items()
                     if owner != MY_ANT]
 

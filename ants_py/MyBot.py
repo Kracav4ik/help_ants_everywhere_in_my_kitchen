@@ -4,13 +4,22 @@ from time import time
 import sys
 
 
-def dist2(a, b): return a[0] * b[0] + a[1] * b[1]
+def dist(a, b): return a * a + b * b
+
+
+def dist_p(a): return a[0] * a[0] + a[1] * a[1]
+
+
+def dist2(a, b): return dist_p(sub2(a, b))
 
 
 def add2(a, b): return a[0] + b[0], a[1] + b[1]
 
 
-def sub2(a, b): return a[0] - b[0], a[1] - b[1]
+def sub2(a, b):
+    if type(a[0]) == str and type(b[0]) == int or type(a[1]) == str and type(b[1]) == int:
+        print()
+    return a[0] - b[0], a[1] - b[1]
 
 
 def div_by_num(a, b): return a[0] / b, a[1] / b
@@ -37,14 +46,7 @@ def debug(*args):
 _neighbours_cache = {}
 
 
-def get_neighbours(loc, rows, cols):
-    deltas = [
-        (-1, 0),
-        (0, 1),
-        (1, 0),
-        (0, -1)]
-    if loc not in _neighbours_cache:
-        _neighbours_cache[loc] = tuple(mod_by_num2_0(add2(loc, delta_rot), rows, cols) for delta_rot in deltas)
+def get_neighbours(loc):
     return _neighbours_cache[loc]
 
 
@@ -60,7 +62,7 @@ def bfs_find_path(ants, ant_loc, target, target_set):
 
     while len(grey) > 0:
         for loc in grey:
-            for neighbour in get_neighbours(loc, ants.rows, ants.cols):
+            for neighbour in get_neighbours(loc):
                 a = ants.map[neighbour[0]][neighbour[1]] == WATER
                 b = neighbour in black
                 c = neighbour in grey
@@ -81,11 +83,18 @@ def bfs_find_path(ants, ant_loc, target, target_set):
                         last = p2p[last]
                     debug('PRIIIINT')
                     debug(last)
-                    return [res[1]]
+                    return res[1]
         black.update(grey)
         grey = new_grey
         new_grey = set()
-    return []
+    return tuple()
+
+
+def alternative_path(ant_loc, ants):
+    for direction in ['w', 'n', 'e', 's']:
+        destination = ants.destination(ant_loc, direction)
+        if ants.passable(destination):
+            return destination
 
 
 class MyBot:
@@ -94,7 +103,17 @@ class MyBot:
         pass
 
     def do_setup(self, ants):
-        pass
+        deltas = [
+            (-1, 0),
+            (0, 1),
+            (1, 0),
+            (0, -1)]
+        for y in range(len(ants.map)):
+            for x in range(len(ants.map[y])):
+                loc = (y, x)
+                if loc not in _neighbours_cache:
+                    _neighbours_cache[loc] = tuple(
+                        mod_by_num2_0(add2(loc, delta_rot), ants.rows, ants.cols) for delta_rot in deltas)
 
     def path2directions(self, param, ant_loc, ants):
         deltas = {
@@ -103,11 +122,15 @@ class MyBot:
             (1, 0): 's',
             (0, ants.cols - 1): 'w',
         }
-        self.ant2path[ant_loc] = deltas[mod_by_num2_0(sub2(param, ant_loc), ants.rows, ants.cols)]
+        num___ = mod_by_num2_0(sub2(param, ant_loc), ants.rows, ants.cols)
+        if num___ not in deltas:
+            self.ant2path[ant_loc] = 'n'
+        else:
+            self.ant2path[ant_loc] = deltas[num___]
 
     def do_turn(self, ants):
+        difficult = False
         target = {}
-        t = 0
         my_ants = ants.my_ants()
         enemy_hills = ants.enemy_hills()
         enemy_ants = ants.enemy_ants()
@@ -117,26 +140,27 @@ class MyBot:
                 self.ant2path[ant_loc] = []
             start = time()
             debug(len(my_ants))
-            if enemy_hills and dist2(ant_loc, enemy_hills[0]) < 10:
-                path = bfs_find_path(ants, ant_loc, target, set(enemy_hills))
-            elif enemy_ants and dist2(ant_loc, enemy_ants[0]) < 10:
-                path = bfs_find_path(ants, ant_loc, target, set(enemy_ants))
-            else:
-                path = bfs_find_path(ants, ant_loc, target, set(ants.food_list))
-            if not path:
-                path = bfs_find_path(ants, ant_loc, target, set(my_ants))
+            new_loc = ()
+            if not difficult:
+                if enemy_hills and all(dist2(ant_loc, enemy) < 90 for enemy in enemy_hills):
+                    new_loc = bfs_find_path(ants, ant_loc, target, set(enemy_hills))
+                elif enemy_ants and all(dist2(ant_loc, enemy) < 90 for enemy in enemy_ants):
+                    new_loc = bfs_find_path(ants, ant_loc, target, set(enemy_ants))
+                elif any(dist2(food, ant_loc) < 150 for food in ants.food_list):
+                    new_loc = bfs_find_path(ants, ant_loc, target, set(ants.food_list))
+            if not new_loc:
+                new_loc = alternative_path(ant_loc, ants)
             time_start = time() - start
             debug('bfs->')
             debug(time_start)
-            t += time_start
-            if path[0] not in orders:
-                orders[path[0]] = ant_loc
-                self.path2directions(path[0], ant_loc, ants)
+            if new_loc not in orders:
+                orders[new_loc] = ant_loc
+                self.path2directions(new_loc, ant_loc, ants)
                 if not self.ant2path[ant_loc]:
-                    self.ant2path[ant_loc].append('w')
+                    continue
                 ants.issue_order((ant_loc, self.ant2path[ant_loc][0]))
-            if t > 2:
-                break
+            if ants.time_remaining() < 200:
+                difficult = True
 
 
 if __name__ == '__main__':
