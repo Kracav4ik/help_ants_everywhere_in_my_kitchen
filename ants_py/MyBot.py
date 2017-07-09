@@ -4,6 +4,9 @@ from time import time
 import sys
 
 
+def dist2(a, b): return a[0] * b[0] + a[1] * b[1]
+
+
 def add2(a, b): return a[0] + b[0], a[1] + b[1]
 
 
@@ -45,7 +48,7 @@ def get_neighbours(loc, rows, cols):
     return _neighbours_cache[loc]
 
 
-def bfs_find_path(ants, ant_loc, target):
+def bfs_find_path(ants, ant_loc, target, target_set):
     """ 
     :type ants: Ants
     :rtype: List
@@ -55,8 +58,6 @@ def bfs_find_path(ants, ant_loc, target):
     new_grey = set()
     p2p = {}
 
-    food_set = set(ants.food_list)
-    my_ants = set(ants.my_ants())
     while len(grey) > 0:
         for loc in grey:
             for neighbour in get_neighbours(loc, ants.rows, ants.cols):
@@ -65,12 +66,11 @@ def bfs_find_path(ants, ant_loc, target):
                 c = neighbour in grey
                 d = neighbour in new_grey
                 e = neighbour in p2p
-                f = neighbour in my_ants
-                if a or b or c or d or e or f:
+                if a or b or c or d or e:
                     continue
                 new_grey.add(neighbour)
                 p2p[neighbour] = loc
-                if neighbour in food_set:
+                if neighbour in target_set:
                     if neighbour in target:
                         continue
                     last = neighbour
@@ -81,7 +81,7 @@ def bfs_find_path(ants, ant_loc, target):
                         last = p2p[last]
                     debug('PRIIIINT')
                     debug(last)
-                    return res[1]
+                    return [res[1]]
         black.update(grey)
         grey = new_grey
         new_grey = set()
@@ -98,42 +98,45 @@ class MyBot:
 
     def path2directions(self, param, ant_loc, ants):
         deltas = {
-            (ants.rows-1, 0): 'n',
+            (ants.rows - 1, 0): 'n',
             (0, 1): 'e',
             (1, 0): 's',
-            (0, ants.cols-1): 'w',
+            (0, ants.cols - 1): 'w',
         }
         self.ant2path[ant_loc] = deltas[mod_by_num2_0(sub2(param, ant_loc), ants.rows, ants.cols)]
 
     def do_turn(self, ants):
-        orders = []
         target = {}
         t = 0
-        for ant_loc in ants.my_ants():
+        my_ants = ants.my_ants()
+        enemy_hills = ants.enemy_hills()
+        enemy_ants = ants.enemy_ants()
+        orders = {ant: ant for ant in my_ants}
+        for i, ant_loc in enumerate(my_ants):
             if ant_loc not in self.ant2path:
                 self.ant2path[ant_loc] = []
             start = time()
-            debug(len(ants.my_ants()))
-            path = bfs_find_path(ants, ant_loc, target)
+            debug(len(my_ants))
+            if enemy_hills and dist2(ant_loc, enemy_hills[0]) < 10:
+                path = bfs_find_path(ants, ant_loc, target, set(enemy_hills))
+            elif enemy_ants and dist2(ant_loc, enemy_ants[0]) < 10:
+                path = bfs_find_path(ants, ant_loc, target, set(enemy_ants))
+            else:
+                path = bfs_find_path(ants, ant_loc, target, set(ants.food_list))
+            if not path:
+                path = bfs_find_path(ants, ant_loc, target, set(my_ants))
             time_start = time() - start
             debug('bfs->')
             debug(time_start)
             t += time_start
-            if t > 2:
-                break
-            if not path:
-                orders.append(ant_loc)
-            elif path not in orders:
-                start = time()
-                orders.append(path)
-                self.path2directions(path, ant_loc, ants)
+            if path[0] not in orders:
+                orders[path[0]] = ant_loc
+                self.path2directions(path[0], ant_loc, ants)
                 if not self.ant2path[ant_loc]:
                     self.ant2path[ant_loc].append('w')
                 ants.issue_order((ant_loc, self.ant2path[ant_loc][0]))
-                time_start = time() - start
-                debug('what else?->')
-                debug(time_start)
-                t += time_start
+            if t > 2:
+                break
 
 
 if __name__ == '__main__':
@@ -152,6 +155,7 @@ if __name__ == '__main__':
     # MyBot().path2directions(bfs_find_path(ants, (0, 0), {}), (0, 0), ants)
     try:
         import psyco
+
         psyco.full()
     except ImportError:
         pass
